@@ -7,7 +7,7 @@ Cloud Security Project Portfolio built on AWS using Terraform, GitHub Actions, a
 - [Scenario](#scenario)
 - [Architecture and Diagrams](#architecture)
 - [Tech Stack](#tech-stack)
-- [Pre-reqs and Setup](#setup)
+- [Pre-reqs and Setup](#pre-reqs-and-setup)
 - [Lessons Learned](#lessons-learned)
 
 ## Scenario
@@ -20,7 +20,7 @@ The problem being solved:
 - Enforce least-privilege access from CI pipelines.
 - Improve deployment consistency and auditability for security-focused cloud engineering work.
 
-## Architecutre and Diagrams
+## Architecture
 
 ### High-Level Architecture
 
@@ -41,6 +41,8 @@ flowchart LR
 3. AWS IAM trust policy validates token claims.
 4. Workflow assumes a scoped IAM role (no static AWS keys).
 5. Terraform provisions/updates AWS resources with auditable role-based access.
+
+## Tech Stack
 
 ## Pre-reqs and Setup
 
