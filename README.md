@@ -1,2 +1,3 @@
-# terraform-portfolio
-Cloud Security Project Portfolio built on AWS using Terraform, Github Actions, &amp; OIDC Federation.
+# Terraform Portfolio: Cloud Security Engineering Project
+
+Cloud Security Project Portfolio built on AWS using Terraform, GitHub Actions, and OIDC federation.
