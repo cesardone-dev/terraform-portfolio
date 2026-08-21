@@ -2,6 +2,8 @@
 
 Cloud Security Project Portfolio built on AWS using GitHub Actions, and OIDC federation.
 
+Live at **[cesardone.dev](https://cesardone.dev)**
+
 ## Table of Contents
 
 - [Scenario](#scenario)
@@ -30,16 +32,32 @@ flowchart LR
     GH --> GHA[GitHub Actions Workflow]
     GHA --> OIDC[GitHub OIDC Token]
     OIDC --> IAM[AWS IAM Role Trust Policy]
-    IAM --> TF[Terraform Apply]
-    TF --> AWS[AWS Resources]
+    IAM --> S3[S3 Sync + CloudFront Invalidation]
+    S3 --> CF[CloudFront Distribution]
+    CF --> User[Visitor]
 ```
+
+### Request Path
+
+```mermaid
+flowchart LR
+    V[Visitor] --> R53[Route 53]
+    R53 --> CFD[CloudFront + ACM]
+    CFD --> OAC[Origin Access Control]
+    OAC --> S3B[(Private S3 Bucket)]
+```
+
+The S3 bucket is never publicly reachable. CloudFront signs every origin request with SigV4 through Origin Access Control, and the bucket policy accepts reads only when `AWS:SourceArn` matches this specific distribution.
 
 ### Security Flow
 
 1. Code is committed to GitHub.
-2. GitHub Actions requests an OIDC token.
-3. AWS IAM trust policy validates token claims.
+2. GitHub Actions requests an OIDC token scoped to the `production` environment.
+3. AWS IAM trust policy validates the token claims (`aud` and `sub`).
 4. Workflow assumes a scoped IAM role (no static AWS keys).
+5. The role can write site objects and create a CloudFront invalidation. Nothing else.
+
+No AWS access key exists anywhere in this project. There is no key to leak, rotate, or find in a git history.
 
 ## Tech Stack
 
@@ -58,42 +76,47 @@ I built the website on Astro:
 - AWS account with permissions to create IAM roles/policies and target resources.
 - GitHub repository with Actions enabled.
 - AWS CLI configured (for local validation, if needed).
+- A registered domain. Mine is registered at Porkbun with DNS delegated to Route 53.
 
 ### Setup
 
-On AWS, I created a private S3 bucket. I approached the set-up using the AWS console. These were the following settings:
+Everything was done through the AWS Console and CloudShell.
+
+#### 1. S3 Bucket
+
+I created a private S3 bucket with the following settings:
 
 - Region: us-east-1
 - Public Access: Block public access
 - Bucket Encryption: SSES3
 - Versioning: Enabled
 
-S3 static hosting remains disabled. The mode requires public bucket access and only speaks HHTp. Origin Access Control keeps the bucket fully private.
+S3 static hosting remains disabled. The mode requires public bucket access and only speaks HTTP. Origin Access Control keeps the bucket fully private while still serving over HHTPS.
 
-I then requested the TLS certificate:
+#### 2. TLS certificate
 
-- Domain name: cesardone.dev
-- Alternative names: www.cesardone.dev
-- Validation method DNS
+Requested a public certificate in ACM:
 
-I created records in Route 53 from the console and awaited for status update
+- Domain name: `cesardone.dev`
+- Alternative names: `www.cesardone.dev`
+- Validation method: DNS
 
-On CloudFront, I created a distribution with Origin Access Control. On the console, i used the following settings:
+The certificate must live in `us-east-1` regardless of where the rest of the infrastructure sits, because that is the only region CloudFront reads certificates from.
 
-- Origin: your S3 bucket, origin access = the OAC you just made
-- Viewer protocol policy: Redirect HTTP to HTTPS
-- Alternate domain names: example.com, www.example.com
-- Custom SSL certificate: the ACM cert
-- Default root object: index.html
-- Cache policy: CachingOptimized
-- Response headers policy: SecurityHeadersPolicy (managed, ID 67f7725c-6f97-4210-82d7-5512b31e9d03)
+Created the validation records in Route 53 from the console and waited for the status to reach `ISSUED`. These records stay in place permanently — ACM re-validates against them before every annual renewal.
 
-To further secure the site, I added a custom security policy on the response headers.
+#### 3. CloudFront distribution
 
-After, I attached the bucket policy to the S3 bucket giving read permissions to only the CloudFront distribution.
+Created a distribution with Origin Access Control:
 
-- Show s3GetObject policy
-
-I used Route53 to create A and AAAA alias records for cesardone.dev and www.cesardone.dev
+| Setting                | Value                                      |
+| ---------------------- | ------------------------------------------ |
+| Origin                 | The private S3 bucket, origin access = OAC |
+| Viewer protocol policy | Redirect HTTP to HTTPS                     |
+| Alternate domain names | `cesardone.dev`, `www.cesardone.dev`       |
+| Custom SSL certificate | The ACM certificate                        |
+| Minimum TLS version    | TLSv1.2_2021                               |
+| Default root object    | `index.html`                               |
+| Cache policy           | `CachingOptimized`                         |
 
 ## Lessons Learned
